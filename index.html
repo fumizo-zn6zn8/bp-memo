@@ -74,10 +74,6 @@
       font-size: 12px;
       background: #ff3b30;
     }
-    #bpChart {
-      width: 100%;
-      max-height: 400px;
-    }
     .med-label {
       display: flex;
       align-items: center;
@@ -110,12 +106,12 @@
       color: #d00;
     }
     .row-delete-btn {
-      width: auto;          /* 1列ぶん全部を占有しない */
-      font-size: 11px;      /* 文字小さめ */
-      padding: 2px 6px;     /* ちっちゃいボタンに */
-      margin-top: 0;        /* 行の中央に収める */
-      background: #ccc;     /* ちょっと控えめな色 */
-      font-weight: normal;  /* 太字じゃなくてOKなら */
+      width: auto;
+      font-size: 11px;
+      padding: 2px 6px;
+      margin-top: 0;
+      background: #ccc;
+      font-weight: normal;
     }
 
     /* グラフの期間切り替えボタン */
@@ -144,6 +140,30 @@
       background: #007aff;
       color: #fff;
       border-color: #007aff;
+    }
+
+    /* 朝／夜グラフ表示用 */
+    .chart-block {
+      margin-bottom: 12px;
+    }
+    .chart-title {
+      font-size: 13px;
+      margin-bottom: 2px;
+      color: #555;
+    }
+    .chart-canvas-wrap {
+      position: relative;
+      height: 260px; /* 必要ならここで高さ調整 */
+    }
+    #bpChartMorning, #bpChartNight {
+      width: 100%;
+      max-height: 260px;
+    }
+
+    /* 履歴をカード内スクロールにする */
+    .history-scroll {
+      max-height: 300px; /* グラフと同じぐらいの高さ感 */
+      overflow-y: auto;
     }
   </style>
 </head>
@@ -176,10 +196,10 @@
     <button id="saveBtn">記録する</button>
   </div>
 
-  <!-- グラフ表示エリア -->
+  <!-- グラフ表示エリア（朝／夜分割） -->
   <div class="card">
-    <h2 style="font-size:16px;margin:0 0 4px;">推移グラフ</h2>
-    <div class="tag">上と下の血圧を時系列で表示</div>
+    <h2 style="font-size:16px;margin:0 0 4px;">推移グラフ（朝／夜）</h2>
+    <div class="tag">測定時刻から自動判定して、朝グラフ・夜グラフに分けて表示します。</div>
     <div class="range-controls">
       <span>表示期間:</span>
       <button class="range-btn" data-range="all">全期間</button>
@@ -188,29 +208,85 @@
       <button class="range-btn" data-range="60d">2か月</button>
       <button class="range-btn" data-range="90d">3か月</button>
     </div>
-    <div style="position:relative;height:400px;">
-      <canvas id="bpChart"></canvas>
+
+    <div class="chart-block">
+      <div class="chart-title">朝</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="bpChartMorning"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-block">
+      <div class="chart-title">夜</div>
+      <div class="chart-canvas-wrap">
+        <canvas id="bpChartNight"></canvas>
+      </div>
     </div>
   </div>
 
+  <!-- 朝/夜の時間帯設定 -->
+  <div class="card">
+    <h2 style="font-size:16px;margin:0 0 4px;">朝/夜の時間帯設定</h2>
+    <div class="tag">
+      測定時刻から自動で「朝」「夜」を判定します。<br/>
+      メモに「朝」「夜」と書かなくてもOKになります。
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px;font-size:12px;align-items:flex-end;">
+      <div>
+        <div>朝:</div>
+        <div>
+          <label style="font-size:11px;">開始
+            <input id="cfgMorningStart" type="time"
+                   style="font-size:13px;width:auto;padding:2px 4px;">
+          </label>
+          <label style="font-size:11px;margin-left:4px;">終了
+            <input id="cfgMorningEnd" type="time"
+                   style="font-size:13px;width:auto;padding:2px 4px;">
+          </label>
+        </div>
+      </div>
+      <div>
+        <div>夜:</div>
+        <div>
+          <label style="font-size:11px;">開始
+            <input id="cfgNightStart" type="time"
+                   style="font-size:13px;width:auto;padding:2px 4px;">
+          </label>
+          <label style="font-size:11px;margin-left:4px;">終了
+            <input id="cfgNightEnd" type="time"
+                   style="font-size:13px;width:auto;padding:2px 4px;">
+          </label>
+        </div>
+      </div>
+    </div>
+    <button id="timeCfgSaveBtn"
+            style="margin-top:8px;width:auto;font-size:13px;padding-inline:12px;">
+      時間帯設定を保存
+    </button>
+    <div id="timeCfgStatus" class="import-status"></div>
+  </div>
+
+  <!-- 記録一覧（カード内スクロール） -->
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
       <h2 style="font-size:16px;margin:0;">記録一覧</h2>
       <button id="clearBtn">全削除</button>
     </div>
-    <table>
-      <thead>
-        <tr>
-          <th>日時</th>
-          <th>上/下</th>
-          <th>脈拍</th>
-          <th>服薬</th>
-          <th>メモ</th>
-          <th>操作</th>
-        </tr>
-      </thead>
-      <tbody id="listBody"></tbody>
-    </table>
+    <div class="history-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>日時</th>
+            <th>上/下</th>
+            <th>脈拍</th>
+            <th>服薬</th>
+            <th>メモ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="listBody"></tbody>
+      </table>
+    </div>
   </div>
 
   <!-- CSV 出力 -->
@@ -221,7 +297,7 @@
     <textarea id="csvArea" rows="6" readonly></textarea>
   </div>
 
-    <!-- JSON バックアップ（このアプリ用） -->
+  <!-- JSON バックアップ（このアプリ用） -->
   <div class="card">
     <h2 style="font-size:16px;margin:0 0 4px;">JSONバックアップ</h2>
     <div class="tag">
@@ -240,7 +316,6 @@
     <div id="jsonStatus" class="import-status"></div>
   </div>
 
-
   <!-- 既存アプリのCSVインポート -->
   <div class="card">
     <h2 style="font-size:16px;margin:0 0 4px;">既存アプリのCSVインポート</h2>
@@ -257,9 +332,10 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
-  const STORAGE_KEY = "bp_records_v1";
+  const STORAGE_KEY   = "bp_records_v1";
+  const TIME_CFG_KEY  = "bp_time_config_v1";
 
-  // ★ グラフの期間（ここをいじれば期間を変えられる）
+  // グラフの期間
   const CHART_RANGES = [
     { id: "all",  label: "全期間", days: null },
     { id: "7d",   label: "1週間", days: 7 },
@@ -267,12 +343,23 @@
     { id: "60d",  label: "2か月", days: 60 },
     { id: "90d",  label: "3か月", days: 90 },
   ];
-    // ★ 基準線の値（ここを変えればラインの位置も変えられる）
-    const TARGET_SYS = 125; // 上の目標ライン
-    const TARGET_DIA = 75;  // 下の目標ライン
 
-  let currentRangeId = "30d";
-  let bpChart = null; // グラフ用の変数
+  // 基準線の値
+  const TARGET_SYS = 125;
+  const TARGET_DIA = 75;
+
+  // 朝/夜のデフォルト時間帯
+  const DEFAULT_TIME_CFG = {
+    morningStart: "04:00",
+    morningEnd:   "11:59",
+    nightStart:   "18:00",
+    nightEnd:     "23:59",
+  };
+
+  let currentRangeId   = "30d";
+  let bpChartMorning   = null;
+  let bpChartNight     = null;
+  let timeConfig       = loadTimeConfig();
 
   const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -299,7 +386,39 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
   }
 
-  // 現在選択されている期間でフィルタ
+  // "HH:MM" → 分に変換
+  function timeStrToMinutes(t) {
+    if (!t || typeof t !== "string") return null;
+    const parts = t.split(":");
+    if (parts.length !== 2) return null;
+    const h = Number(parts[0]);
+    const m = Number(parts[1]);
+    if (Number.isNaN(h) || Number.isNaN(m)) return null;
+    return h * 60 + m;
+  }
+
+  function loadTimeConfig() {
+    try {
+      const raw = localStorage.getItem(TIME_CFG_KEY);
+      if (!raw) return { ...DEFAULT_TIME_CFG };
+      const obj = JSON.parse(raw);
+      return {
+        morningStart: obj.morningStart || DEFAULT_TIME_CFG.morningStart,
+        morningEnd:   obj.morningEnd   || DEFAULT_TIME_CFG.morningEnd,
+        nightStart:   obj.nightStart   || DEFAULT_TIME_CFG.nightStart,
+        nightEnd:     obj.nightEnd     || DEFAULT_TIME_CFG.nightEnd,
+      };
+    } catch (e) {
+      console.error(e);
+      return { ...DEFAULT_TIME_CFG };
+    }
+  }
+
+  function saveTimeConfig(cfg) {
+    localStorage.setItem(TIME_CFG_KEY, JSON.stringify(cfg));
+  }
+
+  // 期間でフィルタ
   function filterByRange(records) {
     const opt = CHART_RANGES.find((r) => r.id === currentRangeId);
     if (!opt || !opt.days) return records; // 全期間
@@ -316,8 +435,7 @@
   }
 
   function updateRangeButtons() {
-    const buttons = document.querySelectorAll(".range-btn");
-    buttons.forEach((btn) => {
+    document.querySelectorAll(".range-btn").forEach((btn) => {
       const id = btn.dataset.range;
       if (id === currentRangeId) {
         btn.classList.add("active");
@@ -327,11 +445,10 @@
     });
   }
 
-  // 日単位で全部並べて、測ってない日は null にする
+  // 日単位で並べて、測ってない日は null
   function buildDailySeries(records) {
     if (!records.length) return { labels: [], sys: [], dia: [] };
 
-    // 日付(YYYY-MM-DD)ごとの最後の測定値を採用
     const byDate = new Map();
     const sorted = [...records].sort((a, b) =>
       (a.dt || "").localeCompare(b.dt || "")
@@ -346,7 +463,7 @@
     if (!keys.length) return { labels: [], sys: [], dia: [] };
 
     const startKey = keys[0];
-    const endKey = keys[keys.length - 1];
+    const endKey   = keys[keys.length - 1];
 
     const [sy, sm, sd] = startKey.split("-").map((x) => Number(x));
     const [ey, em, ed] = endKey.split("-").map((x) => Number(x));
@@ -359,8 +476,8 @@
     const diaArr = [];
 
     while (d.getTime() <= endDate.getTime()) {
-      const y = d.getFullYear();
-      const m = d.getMonth() + 1;
+      const y   = d.getFullYear();
+      const m   = d.getMonth() + 1;
       const day = d.getDate();
       const dateKey = `${y}-${pad2(m)}-${pad2(day)}`;
 
@@ -371,7 +488,6 @@
         sysArr.push(v.sys);
         diaArr.push(v.dia);
       } else {
-        // 測ってない日は null を入れて「線を切る」
         sysArr.push(null);
         diaArr.push(null);
       }
@@ -382,53 +498,104 @@
     return { labels, sys: sysArr, dia: diaArr };
   }
 
-  function updateChart(allRecords) {
-    const canvas = document.getElementById("bpChart");
+  // 時刻から「朝」「夜」を判定（noteは見ない）
+  function getTimeOfDay(rec) {
+    if (!rec.dt) return "";
+    const h  = Number(rec.dt.slice(11, 13));
+    const mi = Number(rec.dt.slice(14, 16));
+    if (Number.isNaN(h) || Number.isNaN(mi)) return "";
+    const minutes = h * 60 + mi;
+
+    const cfg = timeConfig || DEFAULT_TIME_CFG;
+    const ms = timeStrToMinutes(cfg.morningStart);
+    const me = timeStrToMinutes(cfg.morningEnd);
+    const ns = timeStrToMinutes(cfg.nightStart);
+    const ne = timeStrToMinutes(cfg.nightEnd);
+
+    const inRange = (start, end, value) => {
+      if (start == null || end == null) return false;
+      if (start <= end) {
+        // 通常（例: 06:00〜11:59）
+        return value >= start && value <= end;
+      } else {
+        // 24時またぎ（例: 22:00〜02:00）
+        return value >= start || value <= end;
+      }
+    };
+
+    if (inRange(ms, me, minutes)) return "am";
+    if (inRange(ns, ne, minutes)) return "pm";
+    return "";
+  }
+
+  function splitByTimeOfDay(records) {
+    const morning = [];
+    const night   = [];
+    for (const r of records) {
+      const tod = getTimeOfDay(r);
+      if (tod === "am") morning.push(r);
+      else if (tod === "pm") night.push(r);
+    }
+    return { morning, night };
+  }
+
+  function clearCanvas(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  function updateSingleChart(canvasId, which, labelPrefix, records) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === "undefined") return;
 
-    // 選択期間でフィルタ
-    const filtered = filterByRange(allRecords);
-    if (!filtered.length) {
-      if (bpChart) {
-        bpChart.destroy();
-        bpChart = null;
+    if (!records.length) {
+      if (which === "morning" && bpChartMorning) {
+        bpChartMorning.destroy();
+        bpChartMorning = null;
       }
+      if (which === "night" && bpChartNight) {
+        bpChartNight.destroy();
+        bpChartNight = null;
+      }
+      clearCanvas(canvasId);
       return;
     }
 
-    const { labels, sys, dia } = buildDailySeries(filtered);
-    
-    // 基準線用の配列（全ラベル分、一定の値）
+    const { labels, sys, dia } = buildDailySeries(records);
     const baselineSys = labels.map(() => TARGET_SYS);
     const baselineDia = labels.map(() => TARGET_DIA);
-    
-    if (bpChart) {
-      bpChart.destroy();
+
+    if (which === "morning" && bpChartMorning) {
+      bpChartMorning.destroy();
+    }
+    if (which === "night" && bpChartNight) {
+      bpChartNight.destroy();
     }
 
     const ctx = canvas.getContext("2d");
-    bpChart = new Chart(ctx, {
+    const chart = new Chart(ctx, {
       type: "line",
       data: {
         labels,
         datasets: [
           {
-            label: "収縮期(上)",
+            label: `${labelPrefix} 収縮期(上)`,
             data: sys,
             borderColor: "rgb(255, 99, 132)",
             backgroundColor: "rgba(255, 99, 132, 0.2)",
-            spanGaps: true,   // ★ null で線を切る
+            spanGaps: true,
             tension: 0.2,
           },
           {
-            label: "拡張期(下)",
+            label: `${labelPrefix} 拡張期(下)`,
             data: dia,
             borderColor: "rgb(54, 162, 235)",
             backgroundColor: "rgba(54, 162, 235, 0.2)",
-            spanGaps: true,   // ★ null で線を切る
+            spanGaps: true,
             tension: 0.2,
           },
-          // ★ 基準線：125
           {
             label: "基準(125)",
             data: baselineSys,
@@ -439,7 +606,6 @@
             fill: false,
             spanGaps: true,
           },
-          // ★ 基準線：75
           {
             label: "基準(75)",
             data: baselineDia,
@@ -463,10 +629,9 @@
         scales: {
           x: {
             ticks: {
-              // ラベル多いときは間引き表示
               callback: function (value, index, ticks) {
                 const total = ticks.length;
-                const maxLabels = 8; // 画面に出したい最大ラベル数
+                const maxLabels = 8;
                 const step = total > maxLabels ? Math.ceil(total / maxLabels) : 1;
                 if (index % step !== 0) return "";
                 return this.getLabelForValue(value);
@@ -475,64 +640,89 @@
           },
           y: {
             suggestedMin: 60,
-            suggestedMax: 200,
+            suggestedMax: 150,
           },
         },
       },
     });
-  }
 
-  function render() {
-  const list = loadRecords().sort((a, b) =>
-    (b.dt || "").localeCompare(a.dt || "")
-  );
-  const tbody = document.getElementById("listBody");
-  tbody.innerHTML = "";
-
-  for (const rec of list) {
-    const tr = document.createElement("tr");
-    const dtRaw = rec.dt || "";
-    const dtDisp = dtRaw ? dtRaw.replace("T", " ").slice(0, 16) : "";
-    const safeNote = (rec.note || "").replace(/</g, "&lt;");
-    const medFlag = rec.med ? "○" : "";
-
-    // 一旦 HTML をざっくり入れる（削除ボタンはあとで dataset を付ける）
-    tr.innerHTML = `
-      <td>${dtDisp}</td>
-      <td>${rec.sys ?? ""}/${rec.dia ?? ""}</td>
-      <td>${rec.pulse ?? ""}</td>
-      <td>${medFlag}</td>
-      <td>${safeNote}</td>
-      <td><button class="row-delete-btn">削除</button></td>
-    `;
-    tbody.appendChild(tr);
-
-    // 削除ボタンに、この行のデータを埋め込む
-    const btn = tr.querySelector(".row-delete-btn");
-    if (btn) {
-      btn.dataset.dt = dtRaw;
-      btn.dataset.sys = rec.sys != null ? String(rec.sys) : "";
-      btn.dataset.dia = rec.dia != null ? String(rec.dia) : "";
-      btn.dataset.pulse = rec.pulse != null ? String(rec.pulse) : "";
-      btn.dataset.med = rec.med ? "1" : "0";
-      btn.dataset.note = rec.note || "";
+    if (which === "morning") {
+      bpChartMorning = chart;
+    } else {
+      bpChartNight = chart;
     }
   }
 
-  updateChart(loadRecords());
-}
+  function updateCharts(allRecords) {
+    const filtered = filterByRange(allRecords);
+    const { morning, night } = splitByTimeOfDay(filtered);
+    updateSingleChart("bpChartMorning", "morning", "朝", morning);
+    updateSingleChart("bpChartNight",   "night",   "夜", night);
+  }
 
+  function render() {
+    const list = loadRecords().sort((a, b) =>
+      (b.dt || "").localeCompare(a.dt || "")
+    );
+    const tbody = document.getElementById("listBody");
+    tbody.innerHTML = "";
+
+    for (const rec of list) {
+      const tr = document.createElement("tr");
+      const dtRaw   = rec.dt || "";
+      const dtDisp  = dtRaw ? dtRaw.replace("T", " ").slice(0, 16) : "";
+      const safeNote = (rec.note || "").replace(/</g, "&lt;");
+      const medFlag  = rec.med ? "○" : "";
+
+      tr.innerHTML = `
+        <td>${dtDisp}</td>
+        <td>${rec.sys ?? ""}/${rec.dia ?? ""}</td>
+        <td>${rec.pulse ?? ""}</td>
+        <td>${medFlag}</td>
+        <td>${safeNote}</td>
+        <td><button class="row-delete-btn">削除</button></td>
+      `;
+      tbody.appendChild(tr);
+
+      const btn = tr.querySelector(".row-delete-btn");
+      if (btn) {
+        btn.dataset.dt    = dtRaw;
+        btn.dataset.sys   = rec.sys  != null ? String(rec.sys)  : "";
+        btn.dataset.dia   = rec.dia  != null ? String(rec.dia)  : "";
+        btn.dataset.pulse = rec.pulse!= null ? String(rec.pulse): "";
+        btn.dataset.med   = rec.med ? "1" : "0";
+        btn.dataset.note  = rec.note || "";
+      }
+    }
+
+    updateCharts(loadRecords());
+  }
 
   function resetForm() {
-    document.getElementById("dt").value = nowForInput();
-    document.getElementById("sys").value = "";
-    document.getElementById("dia").value = "";
+    document.getElementById("dt").value    = nowForInput();
+    document.getElementById("sys").value   = "";
+    document.getElementById("dia").value   = "";
     document.getElementById("pulse").value = "";
-    document.getElementById("note").value = "";
+    document.getElementById("note").value  = "";
     document.getElementById("med").checked = false;
   }
 
+  // --- 初期化 ---
+
   document.getElementById("dt").value = nowForInput();
+
+  // 時間帯設定入力を初期化
+  (function initTimeConfigInputs() {
+    const cfg = timeConfig;
+    const mS = document.getElementById("cfgMorningStart");
+    const mE = document.getElementById("cfgMorningEnd");
+    const nS = document.getElementById("cfgNightStart");
+    const nE = document.getElementById("cfgNightEnd");
+    if (mS) mS.value = cfg.morningStart;
+    if (mE) mE.value = cfg.morningEnd;
+    if (nS) nS.value = cfg.nightStart;
+    if (nE) nE.value = cfg.nightEnd;
+  })();
 
   document.getElementById("saveBtn").addEventListener("click", () => {
     const dt = document.getElementById("dt").value;
@@ -541,7 +731,7 @@
     const pulseInput = document.getElementById("pulse").value;
     const pulse = pulseInput ? Number(pulseInput) : null;
     const note = document.getElementById("note").value.trim();
-    const med = document.getElementById("med").checked;
+    const med  = document.getElementById("med").checked;
 
     if (!dt || Number.isNaN(sys) || Number.isNaN(dia)) {
       alert("測定日時・上・下は必須です。");
@@ -561,6 +751,38 @@
     render();
   });
 
+  // 一覧の1件削除
+  document.getElementById("listBody").addEventListener("click", (e) => {
+    const target = e.target;
+    if (!(target instanceof HTMLElement)) return;
+    if (!target.classList.contains("row-delete-btn")) return;
+
+    if (!confirm("この1件を削除しますか？")) return;
+
+    const dt    = target.dataset.dt   || "";
+    const sys   = target.dataset.sys  || "";
+    const dia   = target.dataset.dia  || "";
+    const pulse = target.dataset.pulse|| "";
+    const med   = target.dataset.med  || "";
+    const note  = target.dataset.note || "";
+
+    const list = loadRecords();
+    const idx = list.findIndex((r) =>
+      (r.dt || "") === dt &&
+      String(r.sys ?? "")   === sys &&
+      String(r.dia ?? "")   === dia &&
+      String(r.pulse ?? "") === pulse &&
+      String(r.med ? "1" : "0") === med &&
+      String(r.note || "")  === note
+    );
+
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      saveRecords(list);
+      render();
+    }
+  });
+
   // CSV生成
   document.getElementById("csvBtn").addEventListener("click", () => {
     const list = loadRecords().sort((a, b) =>
@@ -568,15 +790,15 @@
     );
 
     const header = ["dt", "sys", "dia", "pulse", "med", "note"];
-    const lines = [header.join(",")];
+    const lines  = [header.join(",")];
 
     for (const r of list) {
-      const dt = r.dt || "";
-      const sys = r.sys ?? "";
-      const dia = r.dia ?? "";
+      const dt    = r.dt || "";
+      const sys   = r.sys ?? "";
+      const dia   = r.dia ?? "";
       const pulse = r.pulse ?? "";
-      const med = r.med ? "1" : "0";
-      const note = (r.note || "").replace(/"/g, '""');
+      const med   = r.med ? "1" : "0";
+      const note  = (r.note || "").replace(/"/g, '""');
       const row = [dt, sys, dia, pulse, med, note]
         .map((v) => `"${String(v)}"`)
         .join(",");
@@ -592,22 +814,20 @@
     }
   });
 
-    // ---- JSON バックアップ（エクスポート／インポート） ----
-
-    // JSONバックアップをダウンロード（localStorageの配列をそのまま保存）
-    document.getElementById("jsonExportBtn").addEventListener("click", () => {
+  // JSONバックアップ エクスポート
+  document.getElementById("jsonExportBtn").addEventListener("click", () => {
     const statusEl = document.getElementById("jsonStatus");
     const data = loadRecords();
     if (!data.length) {
-        statusEl.textContent = "バックアップ対象のデータがありません。";
-        statusEl.classList.add("error");
-        return;
+      statusEl.textContent = "バックアップ対象のデータがありません。";
+      statusEl.classList.add("error");
+      return;
     }
     statusEl.textContent = "";
     statusEl.classList.remove("error");
 
     const blob = new Blob([JSON.stringify(data, null, 2)], {
-        type: "application/json",
+      type: "application/json",
     });
 
     const now = new Date();
@@ -626,72 +846,64 @@
     URL.revokeObjectURL(url);
 
     statusEl.textContent = `バックアップファイル「${filename}」を保存しました。`;
-    });
+  });
 
-    // JSONバックアップから復元（現在のデータを上書き）
-document.getElementById("jsonImportBtn").addEventListener("click", () => {
-  const input = document.getElementById("jsonImportFile");
-  const file = input.files && input.files[0];
-  const statusEl = document.getElementById("jsonStatus");
-  statusEl.textContent = "";
-  statusEl.classList.remove("error");
+  // JSONバックアップ インポート
+  document.getElementById("jsonImportBtn").addEventListener("click", () => {
+    const input = document.getElementById("jsonImportFile");
+    const file = input.files && input.files[0];
+    const statusEl = document.getElementById("jsonStatus");
+    statusEl.textContent = "";
+    statusEl.classList.remove("error");
 
-  if (!file) {
-    statusEl.textContent = "JSONバックアップファイルを選択してください。";
-    statusEl.classList.add("error");
-    return;
-  }
-
-  if (
-    !confirm(
-      "このバックアップで現在のデータを置き換えます。よろしいですか？"
-    )
-  ) {
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      const text = e.target.result;
-      const arr = JSON.parse(text);
-      if (!Array.isArray(arr)) {
-        throw new Error("配列ではありません");
-      }
-
-      // ざっくりバリデーション（最低限）
-      const cleaned = arr
-        .filter((r) => r && typeof r === "object")
-        .map((r) => ({
-          dt: r.dt || "",
-          sys: r.sys ?? null,
-          dia: r.dia ?? null,
-          pulse: r.pulse ?? null,
-          note: r.note || "",
-          med: !!r.med,
-        }));
-
-      saveRecords(cleaned);
-      render();
-      statusEl.textContent = `バックアップから ${cleaned.length} 件のデータを復元しました。`;
-    } catch (err) {
-      console.error(err);
-      statusEl.textContent =
-        "バックアップファイルの読み込みに失敗しました。ファイルを確認してください。";
+    if (!file) {
+      statusEl.textContent = "JSONバックアップファイルを選択してください。";
       statusEl.classList.add("error");
+      return;
     }
-  };
-  reader.onerror = () => {
-    statusEl.textContent = "ファイルを読み込めませんでした。";
-    statusEl.classList.add("error");
-  };
-  reader.readAsText(file);
-});
 
+    if (!confirm("このバックアップで現在のデータを置き換えます。よろしいですか？")) {
+      return;
+    }
 
-  // ---- 既存アプリCSVインポート関連 ----
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const text = e.target.result;
+        const arr = JSON.parse(text);
+        if (!Array.isArray(arr)) {
+          throw new Error("配列ではありません");
+        }
 
-  // "2025/1/6 7:18" や "2020-04-04 08:10:17" → "2020-04-04T08:10"
+        const cleaned = arr
+          .filter((r) => r && typeof r === "object")
+          .map((r) => ({
+            dt:   r.dt   || "",
+            sys:  r.sys  ?? null,
+            dia:  r.dia  ?? null,
+            pulse:r.pulse?? null,
+            note: r.note || "",
+            med:  !!r.med,
+          }));
+
+        saveRecords(cleaned);
+        render();
+        statusEl.textContent = `バックアップから ${cleaned.length} 件のデータを復元しました。`;
+      } catch (err) {
+        console.error(err);
+        statusEl.textContent =
+          "バックアップファイルの読み込みに失敗しました。ファイルを確認してください。";
+        statusEl.classList.add("error");
+      }
+    };
+    reader.onerror = () => {
+      statusEl.textContent = "ファイルを読み込めませんでした。";
+      statusEl.classList.add("error");
+    };
+    reader.readAsText(file);
+  });
+
+  // 既存アプリCSV → インポート
   function parseLegacyDate(str) {
     if (!str) return null;
     str = str.trim();
@@ -710,7 +922,7 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
 
     const lines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
     const bpRecords = [];
-    const medDates = new Set(); // "YYYY-MM-DD" 形式
+    const medDates  = new Set(); // "YYYY-MM-DD"
 
     for (const rawLine of lines) {
       const line = rawLine.trim();
@@ -722,11 +934,10 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
       const c0 = (cols[0] || "").trim();
       if (!c0) continue;
 
-      // 血圧データ（先頭が日付＆時刻）
       const dtIso = parseLegacyDate(c0);
       if (dtIso && cols.length >= 5) {
-        const sys = Number(cols[2]);
-        const dia = Number(cols[3]);
+        const sys   = Number(cols[2]);
+        const dia   = Number(cols[3]);
         const pulse = cols[4] ? Number(cols[4]) : null;
 
         if (Number.isNaN(sys) || Number.isNaN(dia)) {
@@ -734,18 +945,16 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
         }
 
         const noteParts = [];
-        if (cols[1]) noteParts.push(cols[1]); // 朝/夜 など
+        if (cols[1]) noteParts.push(cols[1]); // 朝/夜 など（今後は判定には使わない）
         const note = noteParts.join(" ");
 
         bpRecords.push({ dt: dtIso, sys, dia, pulse, note });
-      }
-      // 体重・服薬の表の行（YYYYMMDD 形式の日付）
-      else if (/^\d{8}$/.test(c0) && cols.length >= 4) {
+      } else if (/^\d{8}$/.test(c0) && cols.length >= 4) {
         const medCol = (cols[3] || "").trim();
         if (medCol) {
-          const y = c0.slice(0, 4);
+          const y  = c0.slice(0, 4);
           const mo = c0.slice(4, 6);
-          const d = c0.slice(6, 8);
+          const d  = c0.slice(6, 8);
           medDates.add(`${y}-${mo}-${d}`);
         }
       }
@@ -758,11 +967,10 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
       return;
     }
 
-    // 既存データとマージ（同じ日時+上+下+脈拍は重複とみなしてスキップ）
     const existing = loadRecords();
     const combined = [...existing];
-
     let importedCount = 0;
+
     for (const rec of bpRecords) {
       const dateKey = rec.dt ? rec.dt.slice(0, 10) : null;
       if (dateKey && medDates.has(dateKey)) {
@@ -791,7 +999,7 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
 
   document.getElementById("importBtn").addEventListener("click", () => {
     const input = document.getElementById("importFile");
-    const file = input.files && input.files[0];
+    const file  = input.files && input.files[0];
     const statusEl = document.getElementById("importStatus");
     statusEl.textContent = "";
     statusEl.classList.remove("error");
@@ -821,53 +1029,62 @@ document.getElementById("jsonImportBtn").addEventListener("click", () => {
     reader.readAsText(file);
   });
 
-  // 期間ボタンのイベント
+  // 朝/夜時間帯の保存ボタン
+  const timeCfgSaveBtn = document.getElementById("timeCfgSaveBtn");
+  if (timeCfgSaveBtn) {
+    timeCfgSaveBtn.addEventListener("click", () => {
+      const statusEl = document.getElementById("timeCfgStatus");
+      if (statusEl) {
+        statusEl.textContent = "";
+        statusEl.classList.remove("error");
+      }
+
+      const mS = document.getElementById("cfgMorningStart").value || DEFAULT_TIME_CFG.morningStart;
+      const mE = document.getElementById("cfgMorningEnd").value   || DEFAULT_TIME_CFG.morningEnd;
+      const nS = document.getElementById("cfgNightStart").value   || DEFAULT_TIME_CFG.nightStart;
+      const nE = document.getElementById("cfgNightEnd").value     || DEFAULT_TIME_CFG.nightEnd;
+
+      if (
+        timeStrToMinutes(mS) == null ||
+        timeStrToMinutes(mE) == null ||
+        timeStrToMinutes(nS) == null ||
+        timeStrToMinutes(nE) == null
+      ) {
+        if (statusEl) {
+          statusEl.textContent = "時刻の形式を確認してください（HH:MM）。";
+          statusEl.classList.add("error");
+        }
+        return;
+      }
+
+      timeConfig = {
+        morningStart: mS,
+        morningEnd:   mE,
+        nightStart:   nS,
+        nightEnd:     nE,
+      };
+      saveTimeConfig(timeConfig);
+      updateCharts(loadRecords());
+
+      if (statusEl) {
+        statusEl.textContent = "時間帯設定を保存しました。";
+      }
+    });
+  }
+
+  // 期間ボタン
   document.querySelectorAll(".range-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const id = btn.dataset.range || "all";
       currentRangeId = id;
       updateRangeButtons();
-      updateChart(loadRecords());
+      updateCharts(loadRecords());
     });
   });
 
   // 初期描画
-  document.getElementById("dt").value = nowForInput();
   updateRangeButtons();
   render();
-  // 一覧の「削除」ボタンで、その1件だけ削除する
-document.getElementById("listBody").addEventListener("click", (e) => {
-  const target = e.target;
-  if (!(target instanceof HTMLElement)) return;
-  if (!target.classList.contains("row-delete-btn")) return;
-
-  if (!confirm("この1件を削除しますか？")) return;
-
-  const dt   = target.dataset.dt || "";
-  const sys  = target.dataset.sys || "";
-  const dia  = target.dataset.dia || "";
-  const pulse = target.dataset.pulse || "";
-  const med  = target.dataset.med || "";
-  const note = target.dataset.note || "";
-
-  const list = loadRecords();
-  const idx = list.findIndex((r) =>
-    (r.dt || "") === dt &&
-    String(r.sys ?? "") === sys &&
-    String(r.dia ?? "") === dia &&
-    String(r.pulse ?? "") === pulse &&
-    String(r.med ? "1" : "0") === med &&
-    String(r.note || "") === note
-  );
-
-  if (idx >= 0) {
-    list.splice(idx, 1);      // その1件だけ削除
-    saveRecords(list);        // localStorage を更新
-    render();                 // 画面を描き直す
-  }
-});
-
-</script>
-
+  </script>
 </body>
 </html>
