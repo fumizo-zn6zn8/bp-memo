@@ -84,6 +84,16 @@
     .med-label input[type="checkbox"] {
       width: auto;
     }
+    .compare-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      margin-top: 8px;
+    }
+    .compare-label input[type="checkbox"] {
+      width: auto;
+    }
     #csvArea {
       margin-top: 6px;
       font-size: 11px;
@@ -208,6 +218,10 @@
       <button class="range-btn" data-range="60d">2か月</button>
       <button class="range-btn" data-range="90d">3か月</button>
     </div>
+    <label class="compare-label">
+      <input id="comparePrevYear" type="checkbox" />
+      前年度比較を表示
+    </label>
 
     <div class="chart-block">
       <div class="chart-title">朝</div>
@@ -334,6 +348,7 @@
   <script>
   const STORAGE_KEY   = "bp_records_v1";
   const TIME_CFG_KEY  = "bp_time_config_v1";
+  const COMPARE_KEY   = "bp_compare_prev_year_v1";
 
   // グラフの期間
   const CHART_RANGES = [
@@ -360,6 +375,7 @@
   let bpChartMorning   = null;
   let bpChartNight     = null;
   let timeConfig       = loadTimeConfig();
+  let comparePrevYear  = loadCompareSetting();
 
   const pad2 = (n) => String(n).padStart(2, "0");
 
@@ -416,6 +432,19 @@
 
   function saveTimeConfig(cfg) {
     localStorage.setItem(TIME_CFG_KEY, JSON.stringify(cfg));
+  }
+
+  function loadCompareSetting() {
+    try {
+      return localStorage.getItem(COMPARE_KEY) === "1";
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  }
+
+  function saveCompareSetting(enabled) {
+    localStorage.setItem(COMPARE_KEY, enabled ? "1" : "0");
   }
 
   // 期間でフィルタ
@@ -486,7 +515,21 @@
     return { labels, keys: axisKeys };
   }
 
-  function buildDailySeries(records, axisKeys) {
+  function shiftDateKeyByYears(dateKey, years) {
+    const parts = dateKey.split("-").map((x) => Number(x));
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+
+    const [y, m, d] = parts;
+    const date = new Date(y, m - 1, d);
+    date.setFullYear(date.getFullYear() + years);
+
+    const yy = date.getFullYear();
+    const mm = date.getMonth() + 1;
+    const dd = date.getDate();
+    return `${yy}-${pad2(mm)}-${pad2(dd)}`;
+  }
+
+  function buildDailySeries(records, axisKeys, yearOffset = 0) {
     if (!records.length) return { sys: [], dia: [] };
 
     const byDate = new Map();
@@ -509,7 +552,8 @@
     const diaArr = [];
 
     for (const dateKey of keys) {
-      const v = byDate.get(dateKey);
+      const lookupKey = yearOffset ? shiftDateKeyByYears(dateKey, yearOffset) : dateKey;
+      const v = lookupKey ? byDate.get(lookupKey) : null;
       if (v) {
         sysArr.push(v.sys);
         diaArr.push(v.dia);
@@ -570,7 +614,7 @@
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  function updateSingleChart(canvasId, which, labelPrefix, records, axis) {
+  function updateSingleChart(canvasId, which, labelPrefix, records, axis, compareEnabled, compareRecords) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === "undefined") return;
 
@@ -591,7 +635,10 @@
       ? axis
       : buildDailyAxis(records);
     const { labels, keys } = axisData;
-    const { sys, dia } = buildDailySeries(records, keys);
+    const { sys, dia } = buildDailySeries(records, keys, 0);
+    const compareSeries = compareEnabled
+      ? buildDailySeries(compareRecords || [], keys, -1)
+      : { sys: [], dia: [] };
     const baselineSys = labels.map(() => TARGET_SYS);
     const baselineDia = labels.map(() => TARGET_DIA);
 
@@ -644,6 +691,34 @@
             fill: false,
             spanGaps: true,
           },
+          ...(compareEnabled ? [
+            {
+              label: `${labelPrefix} 収縮期(前年)`,
+              data: compareSeries.sys,
+              borderColor: "rgba(255, 99, 132, 0.5)",
+              backgroundColor: "rgba(255, 99, 132, 0)",
+              borderWidth: 3,
+              borderDash: [2, 4],
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false,
+              spanGaps: true,
+              tension: 0.2,
+            },
+            {
+              label: `${labelPrefix} 拡張期(前年)`,
+              data: compareSeries.dia,
+              borderColor: "rgba(54, 162, 235, 0.5)",
+              backgroundColor: "rgba(54, 162, 235, 0)",
+              borderWidth: 3,
+              borderDash: [2, 4],
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false,
+              spanGaps: true,
+              tension: 0.2,
+            },
+          ] : []),
         ],
       },
       options: {
@@ -685,8 +760,8 @@
     const filtered = filterByRange(allRecords);
     const axis = buildDailyAxis(filtered);
     const { morning, night } = splitByTimeOfDay(filtered);
-    updateSingleChart("bpChartMorning", "morning", "朝", morning, axis);
-    updateSingleChart("bpChartNight",   "night",   "夜", night, axis);
+    updateSingleChart("bpChartMorning", "morning", "朝", morning, axis, comparePrevYear, allRecords);
+    updateSingleChart("bpChartNight",   "night",   "夜", night, axis, comparePrevYear, allRecords);
   }
 
   function render() {
@@ -739,6 +814,15 @@
   // --- 初期化 ---
 
   document.getElementById("dt").value = nowForInput();
+  const compareCheckbox = document.getElementById("comparePrevYear");
+  if (compareCheckbox) {
+    compareCheckbox.checked = comparePrevYear;
+    compareCheckbox.addEventListener("change", () => {
+      comparePrevYear = compareCheckbox.checked;
+      saveCompareSetting(comparePrevYear);
+      updateCharts(loadRecords());
+    });
+  }
 
   // 時間帯設定入力を初期化
   (function initTimeConfigInputs() {
