@@ -764,8 +764,10 @@
     const filtered = filterByRange(allRecords);
     const axis = buildDailyAxis(filtered);
     const { morning, night } = splitByTimeOfDay(filtered);
-    updateSingleChart("bpChartMorning", "morning", "朝", morning, axis, comparePrevYear, allRecords);
-    updateSingleChart("bpChartNight",   "night",   "夜", night, axis, comparePrevYear, allRecords);
+    const compareFiltered = filterByRange(allRecords);
+    const { morning: compareMorning, night: compareNight } = splitByTimeOfDay(compareFiltered);
+    updateSingleChart("bpChartMorning", "morning", "朝", morning, axis, comparePrevYear, compareMorning);
+    updateSingleChart("bpChartNight",   "night",   "夜", night, axis, comparePrevYear, compareNight);
   }
 
   function render() {
