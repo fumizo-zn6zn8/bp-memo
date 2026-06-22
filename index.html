@@ -446,21 +446,18 @@
   }
 
   // 日単位で並べて、測ってない日は null
-  function buildDailySeries(records) {
-    if (!records.length) return { labels: [], sys: [], dia: [] };
+  function buildDailyAxis(records) {
+    if (!records.length) return { labels: [], keys: [] };
 
-    const byDate = new Map();
-    const sorted = [...records].sort((a, b) =>
-      (a.dt || "").localeCompare(b.dt || "")
-    );
-    for (const r of sorted) {
-      if (!r.dt) continue;
-      const dateKey = r.dt.slice(0, 10); // YYYY-MM-DD
-      byDate.set(dateKey, { sys: r.sys ?? null, dia: r.dia ?? null });
-    }
+    const keys = Array.from(
+      new Set(
+        records
+          .map((r) => (r.dt ? r.dt.slice(0, 10) : ""))
+          .filter(Boolean)
+      )
+    ).sort();
 
-    const keys = Array.from(byDate.keys()).sort();
-    if (!keys.length) return { labels: [], sys: [], dia: [] };
+    if (!keys.length) return { labels: [], keys: [] };
 
     const startKey = keys[0];
     const endKey   = keys[keys.length - 1];
@@ -472,8 +469,7 @@
     const endDate = new Date(ey, em - 1, ed);
 
     const labels = [];
-    const sysArr = [];
-    const diaArr = [];
+    const axisKeys = [];
 
     while (d.getTime() <= endDate.getTime()) {
       const y   = d.getFullYear();
@@ -481,8 +477,38 @@
       const day = d.getDate();
       const dateKey = `${y}-${pad2(m)}-${pad2(day)}`;
 
+      axisKeys.push(dateKey);
       labels.push(`${pad2(m)}/${pad2(day)}`);
 
+      d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    return { labels, keys: axisKeys };
+  }
+
+  function buildDailySeries(records, axisKeys) {
+    if (!records.length) return { sys: [], dia: [] };
+
+    const byDate = new Map();
+    const sorted = [...records].sort((a, b) =>
+      (a.dt || "").localeCompare(b.dt || "")
+    );
+    for (const r of sorted) {
+      if (!r.dt) continue;
+      const dateKey = r.dt.slice(0, 10); // YYYY-MM-DD
+      byDate.set(dateKey, { sys: r.sys ?? null, dia: r.dia ?? null });
+    }
+
+    const keys = Array.isArray(axisKeys) && axisKeys.length
+      ? axisKeys
+      : Array.from(byDate.keys()).sort();
+
+    if (!keys.length) return { sys: [], dia: [] };
+
+    const sysArr = [];
+    const diaArr = [];
+
+    for (const dateKey of keys) {
       const v = byDate.get(dateKey);
       if (v) {
         sysArr.push(v.sys);
@@ -491,11 +517,9 @@
         sysArr.push(null);
         diaArr.push(null);
       }
-
-      d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
     }
 
-    return { labels, sys: sysArr, dia: diaArr };
+    return { sys: sysArr, dia: diaArr };
   }
 
   // 時刻から「朝」「夜」を判定（noteは見ない）
@@ -546,7 +570,7 @@
     if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
   }
 
-  function updateSingleChart(canvasId, which, labelPrefix, records) {
+  function updateSingleChart(canvasId, which, labelPrefix, records, axis) {
     const canvas = document.getElementById(canvasId);
     if (!canvas || typeof Chart === "undefined") return;
 
@@ -563,7 +587,11 @@
       return;
     }
 
-    const { labels, sys, dia } = buildDailySeries(records);
+    const axisData = axis && Array.isArray(axis.labels) && Array.isArray(axis.keys)
+      ? axis
+      : buildDailyAxis(records);
+    const { labels, keys } = axisData;
+    const { sys, dia } = buildDailySeries(records, keys);
     const baselineSys = labels.map(() => TARGET_SYS);
     const baselineDia = labels.map(() => TARGET_DIA);
 
@@ -655,9 +683,10 @@
 
   function updateCharts(allRecords) {
     const filtered = filterByRange(allRecords);
+    const axis = buildDailyAxis(filtered);
     const { morning, night } = splitByTimeOfDay(filtered);
-    updateSingleChart("bpChartMorning", "morning", "朝", morning);
-    updateSingleChart("bpChartNight",   "night",   "夜", night);
+    updateSingleChart("bpChartMorning", "morning", "朝", morning, axis);
+    updateSingleChart("bpChartNight",   "night",   "夜", night, axis);
   }
 
   function render() {
