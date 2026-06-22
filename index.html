@@ -764,7 +764,13 @@
     const filtered = filterByRange(allRecords);
     const axis = buildDailyAxis(filtered);
     const { morning, night } = splitByTimeOfDay(filtered);
-    const compareFiltered = filterByRange(allRecords);
+    const startKey = axis.keys[0];
+    const endKey = axis.keys[axis.keys.length - 1];
+    const compareStartKey = shiftDateKeyByYears(startKey, -1);
+    const compareEndKey = shiftDateKeyByYears(endKey, -1);
+    const compareFiltered = comparePrevYear && compareStartKey && compareEndKey
+      ? filterRecordsByDateRange(allRecords, compareStartKey, compareEndKey)
+      : [];
     const { morning: compareMorning, night: compareNight } = splitByTimeOfDay(compareFiltered);
     updateSingleChart("bpChartMorning", "morning", "朝", morning, axis, comparePrevYear, compareMorning);
     updateSingleChart("bpChartNight",   "night",   "夜", night, axis, comparePrevYear, compareNight);
@@ -827,6 +833,30 @@
       comparePrevYear = compareCheckbox.checked;
       saveCompareSetting(comparePrevYear);
       updateCharts(loadRecords());
+    });
+  }
+
+  function parseDateKeyToDate(dateKey) {
+    if (!dateKey) return null;
+    const parts = dateKey.split("-").map((x) => Number(x));
+    if (parts.length !== 3 || parts.some((n) => Number.isNaN(n))) return null;
+    const [y, m, d] = parts;
+    return new Date(y, m - 1, d);
+  }
+
+  function filterRecordsByDateRange(records, startKey, endKey) {
+    const startDate = parseDateKeyToDate(startKey);
+    const endDate = parseDateKeyToDate(endKey);
+    if (!startDate || !endDate) return [];
+
+    const startTime = startDate.getTime();
+    const endTime = endDate.getTime() + 24 * 60 * 60 * 1000 - 1;
+
+    return records.filter((r) => {
+      if (!r.dt) return false;
+      const t = new Date(r.dt).getTime();
+      if (Number.isNaN(t)) return false;
+      return t >= startTime && t <= endTime;
     });
   }
 
